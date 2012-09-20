@@ -98,6 +98,7 @@ def launch_rv(client_vm, guest_vm, params):
     rv_binary = params.get("rv_binary", "remote-viewer")
     host_ip = utils_misc.get_host_ip_address(params)
     host_port = None
+    full_screen = params.get("full_screen")
     display = params.get("display")
     cmd = rv_binary + " --display=:0.0"
     ticket = None
@@ -142,6 +143,13 @@ def launch_rv(client_vm, guest_vm, params):
 
     else:
         raise Exception("Unsupported display value")
+
+    # Check to see if the test is using the full screen option.
+    if full_screen == "True":
+        logging.info("Remote Viewer Set to use Full Screen")
+        cmd += " --full-screen"
+
+
     cmd = "nohup " + cmd + " &> /dev/null &" # Launch it on background
 
     # Launching the actual set of commands
