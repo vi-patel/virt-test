@@ -9,7 +9,7 @@ import logging, os
 from virttest.aexpect import ShellCmdError, ShellStatusError
 from virttest.aexpect import ShellTimeoutError, ShellProcessTerminatedError
 from virttest import utils_net, utils_spice, remote
-
+from autotest.client.shared import error
 
 class RVConnectError(Exception):
     """Exception raised in case that remote-viewer fails to connect"""
@@ -92,11 +92,19 @@ def launch_rv(client_vm, guest_vm, params):
     """
     rv_binary = params.get("rv_binary", "remote-viewer")
     host_ip = utils_net.get_host_ip_address(params)
+    test_type = params.get("test_type")
     host_port = None
     full_screen = params.get("full_screen")
     display = params.get("display")
     cmd = rv_binary + " --display=:0.0"
     ticket = None
+    ticket_send = params.get("spice_password_send")
+    qemu_ticket = params.get("qemu_password")
+
+    #If qemu_ticket is set, set the password of the VM using the qemu-monitor
+    if qemu_ticket:
+        guest_vm.monitor.cmd("set_password spice %s" % qemu_ticket)
+        logging.info("Sending to qemu monitor: set_password spice %s" % qemu_ticket)
 
     client_session = client_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
@@ -166,12 +174,25 @@ def launch_rv(client_vm, guest_vm, params):
                       "remote-viewer later")
 
     # client waits for user entry (authentication) if spice_password is set
-    if ticket:
+    # use qemu monitor password if set, else check if the normal password is set
+    if qemu_ticket:
+        # Wait for remote-viewer to launch
+        utils_spice.wait_timeout(5)
+        send_ticket(client_vm, qemu_ticket)
+    elif ticket:
+        if ticket_send:
+            ticket = ticket_send
+
         utils_spice.wait_timeout(5)  # Wait for remote-viewer to launch
         send_ticket(client_vm, ticket)
-
     utils_spice.wait_timeout(5)  # Wait for conncetion to establish
-    verify_established(client_vm, host_ip, host_port, rv_binary)
+    try:
+        verify_established(client_vm, host_ip, host_port, rv_binary)
+    except RVConnectError:
+        if test_type == "negative":
+            logging.info("remote-viewer connection failed as expected")
+        else:
+            raise error.TestFail("remote-viewer connection failed") 
 
     #prevent from kill remote-viewer after test finish
     cmd = "disown -ar"
