@@ -11,11 +11,6 @@ from virttest.aexpect import ShellTimeoutError, ShellProcessTerminatedError
 from virttest import utils_net, utils_spice, remote
 
 
-class RVConnectError(Exception):
-    """Exception raised in case that remote-viewer fails to connect"""
-    pass
-
-
 def send_ticket(client_vm, ticket):
     """
     sends spice_password trough vm.send_key()
@@ -27,35 +22,6 @@ def send_ticket(client_vm, ticket):
         client_vm.send_key(character)
 
     client_vm.send_key("kp_enter")  # send enter
-
-
-def verify_established(client_vm, host, port, rv_binary):
-    """
-    Parses netstat output for established connection on host:port
-    @param client_session - vm.wait_for_login()
-    @param host - host ip addr
-    @param port - port for client to connect
-    @param rv_binary - remote-viewer binary
-    """
-    rv_binary = rv_binary.split(os.path.sep)[-1]
-
-    client_session = client_vm.wait_for_login(timeout=60)
-
-    # !!! -n means do not resolve port names
-    cmd = '(netstat -pn 2>&1| grep "^tcp.*:.*%s:%s.*ESTABLISHED.*%s.*") \
-        > /dev/null' % (host, str(port), rv_binary)
-    try:
-        netstat_out = client_session.cmd(cmd)
-        logging.info("netstat output: %s", netstat_out)
-
-    except ShellCmdError:
-        logging.error("Failed to get established connection from netstat")
-        raise RVConnectError()
-
-    else:
-        logging.info("%s connection to %s:%s successful.",
-               rv_binary, host, port)
-    client_session.close()
 
 
 def print_rv_version(client_session, rv_binary):
@@ -171,7 +137,7 @@ def launch_rv(client_vm, guest_vm, params):
         send_ticket(client_vm, ticket)
 
     utils_spice.wait_timeout(5)  # Wait for conncetion to establish
-    verify_established(client_vm, host_ip, host_port, rv_binary)
+    utils_spice.verify_established(client_vm, host_ip, host_port, rv_binary)
 
     #prevent from kill remote-viewer after test finish
     cmd = "disown -ar"
