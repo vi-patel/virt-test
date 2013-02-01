@@ -25,7 +25,7 @@ first_subtest = {'qemu': ['unattended_install'],
                 'openvswitch': ['unattended_install'],
                 'v2v': ['unattended_install']}
 
-last_subtest = {'qemu': ['shutdown'],
+last_subtest = {'qemu': ['shutdown', 'client_guest_shutdown'],
                 'libvirt': ['shutdown', 'remove_guest'],
                 'openvswitch': ['shutdown'],
                 'v2v': ['shutdown']}
