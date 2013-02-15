@@ -1016,9 +1016,14 @@ def run_rv_copyandpaste(test, params, env):
 
     utils_spice.launch_startx(guest_vm)
 
-    guest_session.cmd("export DISPLAY=:0.0")
     # Verify that gnome is now running on the guest
-    guest_session.cmd("ps aux | grep -v grep | grep gnome-session")
+    try:
+        guest_session.cmd("ps aux | grep -v grep | grep gnome-session")
+    except aexpect.ShellCmdError:
+        raise error.TestWarn("gnome-session was probably not corretly started")
+
+    guest_session.cmd("export DISPLAY=:0.0")
+    
 
     # Make sure the clipboards are clear before starting the test
     clear_cb(guest_session, params)
