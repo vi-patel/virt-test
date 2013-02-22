@@ -147,20 +147,3 @@ def verify_virtio(guest_session, test_timeout):
         logging.debug("------------ End of guest check of the Virtio-Serial"
                      " Driver------------")
     wait_timeout(3)
-
-def launch_startx(vm):
-    """
-    Run startx on the VM
-
-    @param guest_session: ssh session of the VM
-    """
-    vm_session = vm.wait_for_login(timeout=60)
-
-    try:
-        logging.info("Starting X server on the VM");
-        vm_session.cmd("startx &", timeout=15)
-    except (ShellCmdError, ShellStatusError, ShellTimeoutError):
-        logging.debug("Ignoring an Exception that Occurs from calling startx")
-
-    wait_timeout(15)
-    vm_session.close()
