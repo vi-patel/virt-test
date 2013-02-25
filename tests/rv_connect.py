@@ -6,6 +6,8 @@ Requires: binaries remote-viewer, Xorg, netstat
 
 """
 import logging, os
+import socket, sys
+from autotest.client.shared import error
 from virttest.aexpect import ShellCmdError, ShellStatusError
 from virttest.aexpect import ShellTimeoutError, ShellProcessTerminatedError
 from virttest import utils_net, utils_spice, remote
@@ -92,6 +94,7 @@ def launch_rv(client_vm, guest_vm, params):
     """
     rv_binary = params.get("rv_binary", "remote-viewer")
     host_ip = utils_net.get_host_ip_address(params)
+    ssltype = params.get("ssltype")
     host_port = None
     full_screen = params.get("full_screen")
     display = params.get("display")
@@ -113,8 +116,20 @@ def launch_rv(client_vm, guest_vm, params):
             #first character (it's '/')
             host_subj = guest_vm.get_spice_var("spice_x509_server_subj")
             host_subj = host_subj.replace('/', ',')[1:]
+            if ssltype == "invalid_explicit_hs":
+                host_subj += "Invalid Explicit HS"
+            else:
+                host_subj += utils_net.get_host_ip_address(params)
 
-            cmd += " spice://%s?tls-port=%s" % (host_ip, host_port)
+            # If it's invalid implicit, a remote-viewer connection
+            # will be attempted with the hostname, since ssl certs were 
+            # generated with the ip address 
+            if(ssltype == "invalid_implicit_hs"):
+                cmd += " spice://%s?tls-port=%s" % (socket.gethostname(),
+                                                    host_port)
+            else:
+                cmd += " spice://%s?tls-port=%s" % (host_ip, host_port)
+
             cmd += " --spice-ca-file=%s" % cacert
 
             if params.get("spice_client_host_subject") == "yes":
@@ -171,7 +186,25 @@ def launch_rv(client_vm, guest_vm, params):
         send_ticket(client_vm, ticket)
 
     utils_spice.wait_timeout(5)  # Wait for conncetion to establish
-    verify_established(client_vm, host_ip, host_port, rv_binary)
+    
+    try:
+        verify_established(client_vm, host_ip, host_port, rv_binary)
+    except RVConnectError:
+        if ssltype == "invalid_implicit_hs" or ssltype == "invalid_explicit_hs":
+            logging.info("Remote Viewer connection was not established as" +
+                         " expected")
+            #Check the qemu process output to verify what is expected
+            qemulog = guest_vm.process.get_output()
+          
+        if "SSL_accept failed" in qemulog:
+            sys.exit()
+
+        raise error.TestFail("Remote Viewer connection was not successfully" +
+                             " established.")
+         
+    if (ssltype == "invalid_implicit_hs" or ssltype == "invalid_explicit_hs"):
+        raise error.TestFail("Remote Viewer connection was established when" +
+                             " it was supposed to be unsuccessful")
 
     #prevent from kill remote-viewer after test finish
     cmd = "disown -ar"
