@@ -802,6 +802,7 @@ class VM(virt_vm.BaseVM):
                     # not longer accessiable via encrypted spice.
                     c_subj = optget("spice_x509_cacert_subj")
                     s_subj = optget("spice_x509_server_subj")
+                    s_subj += utils_net.get_host_ip_address(self.params)
                     passwd = optget("spice_x509_key_password")
                     secure = optget("spice_x509_secure")
 
@@ -2641,6 +2642,7 @@ class VM(virt_vm.BaseVM):
                     dest_tls_port = clone.spice_options["spice_tls_port"]
                     cert_subj = clone.spice_options["spice_x509_server_subj"]
                     cert_subj = "\"%s\"" % cert_subj.replace('/',',')[1:]
+                    cert_subj += host_ip
                 else:
                     dest_tls_port = ""
                     cert_subj = ""
