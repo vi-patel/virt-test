@@ -101,11 +101,7 @@ def launch_rv(client_vm, guest_vm, params):
             client_session.cmd("rm -rf %s && mkdir -p %s" % (
                                guest_vm.get_spice_var("spice_x509_prefix"),
                                guest_vm.get_spice_var("spice_x509_prefix")))
-            remote.copy_files_to(client_vm.get_address(), 'scp',
-                                      params.get("username"),
-                                      params.get("password"),
-                                      params.get("shell_port"),
-                                      cacert, cacert)
+            client_vm.copy_files_to(cacert, cacert, timeout=60)
         else:
             host_port = guest_vm.get_spice_var("spice_port")
             cmd += " spice://%s?port=%s" % (host_ip, host_port)
@@ -135,7 +131,7 @@ def launch_rv(client_vm, guest_vm, params):
 
     logging.info("Launching %s on the client (virtual)", cmd)
     try:
-        client_session.cmd(cmd)
+        logging.info("spice,connection: %s", client_session.cmd(cmd))
     except ShellStatusError:
         logging.debug("Ignoring a status exception, will check connection of"
                       "remote-viewer later")
