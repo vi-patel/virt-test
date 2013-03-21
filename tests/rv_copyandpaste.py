@@ -943,6 +943,8 @@ def run_rv_copyandpaste(test, params, env):
             timeout=int(params.get("login_timeout", 360)))
 
     guest_vm = env.get_vm(params["guest_vm"])
+    rootuser = guest_vm.get_params().get("rootuser")
+    rootpassword = guest_vm.get_params().get("rootpassword")
     guest_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
     guest_root_session = guest_vm.wait_for_login(
@@ -1008,7 +1010,6 @@ def run_rv_copyandpaste(test, params, env):
         raise error.TestWarn("gnome-session was probably not corretly started")
 
     guest_session.cmd("export DISPLAY=:0.0")
-    
 
     # Make sure the clipboards are clear before starting the test
     clear_cb(guest_session, params)
