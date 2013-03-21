@@ -26,8 +26,11 @@ def run_client_guest_shutdown(test, params, env):
 
     #shutdown both of the sessions
     for vm in [client_vm, guest_vm]:
-        vm_session = vm.wait_for_login(timeout=timeout, username="root",
-                                       password="123456")
+        rootuser = vm.get_params().get("rootuser")
+        rootpassword = vm.get_params().get("rootpassword")
+
+        vm_session = vm.wait_for_login(timeout=timeout, username=rootuser,
+                                       password=rootpassword)
         try:
             error.base_context("shutting down the VM")
             if params.get("shutdown_method") == "shell":
