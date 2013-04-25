@@ -8,7 +8,7 @@ Requires: binaries remote-viewer, Xorg, netstat
 import logging, os
 from virttest.aexpect import ShellStatusError
 from virttest.aexpect import ShellProcessTerminatedError
-from virttest import utils_net, utils_spice, remote
+from virttest import utils_net, utils_spice, remote, utils_misc
 from autotest.client.shared import error
 
 def send_ticket(client_vm, ticket):
@@ -108,7 +108,11 @@ def launch_rv(client_vm, guest_vm, params):
                                       cacert, cacert)
         else:
             host_port = guest_vm.get_spice_var("spice_port")
-            cmd += " spice://%s?port=%s" % (host_ip, host_port)
+            if guest_vm.get_spice_var("listening_addr") == "ipv6":
+               host_ip_ipv6 = utils_misc.convert_ipv4_to_ipv6(host_ip)
+               cmd += " spice://[%s]?port=%s" % (host_ip_ipv6, host_port)
+            else:
+               cmd += " spice://%s?port=%s" % (host_ip, host_port)
 
     elif display == "vnc":
         raise NotImplementedError("remote-viewer vnc")
