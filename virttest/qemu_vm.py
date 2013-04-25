@@ -782,6 +782,17 @@ class VM(virt_vm.BaseVM):
                 set_value("port=%s", "spice_port")
 
             set_value("password=%s", "spice_password", "disable-ticketing")
+            if optget("listening_addr") == "ipv4":
+                host_ip = utils_net.get_host_ip_address(self.params)
+                self.spice_options['listening_addr'] = "ipv4"
+                spice_opts.append("addr=%s" % host_ip)
+                #set_value("addr=%s", "listening_addr", )
+            elif optget("listening_addr") == "ipv6":
+                host_ip = utils_net.get_host_ip_address(self.params)
+                host_ip_ipv6 = utils_misc.convert_ipv4_to_ipv6(host_ip)
+                self.spice_options['listening_addr'] = "ipv6"
+                spice_opts.append("addr=%s" % host_ip_ipv6)
+
             set_yes_no_value("disable_copy_paste", yes_value="disable-copy-paste")
             set_value("addr=%s", "spice_addr")
 
@@ -1445,7 +1456,8 @@ class VM(virt_vm.BaseVM):
                 "spice_zlib_glz_wan_compression", "spice_streaming_video",
                 "spice_agent_mouse", "spice_playback_compression",
                 "spice_ipv4", "spice_ipv6", "spice_x509_cert_file",
-                "disable_copy_paste", "spice_seamless_migration"
+                "disable_copy_paste", "spice_seamless_migration", 
+                "listening_addr"
             )
 
             for skey in spice_keys:
