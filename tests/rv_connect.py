@@ -58,6 +58,8 @@ def launch_rv(client_vm, guest_vm, params):
     """
     rv_binary = params.get("rv_binary", "remote-viewer")
     host_ip = utils_net.get_host_ip_address(params)
+    check_spice_info = params.get("spice_info")
+    host_ip_ipv6 = utils_misc.convert_ipv4_to_ipv6(host_ip)
     test_type = params.get("test_type")
     host_port = None
     full_screen = params.get("full_screen")
@@ -109,7 +111,6 @@ def launch_rv(client_vm, guest_vm, params):
         else:
             host_port = guest_vm.get_spice_var("spice_port")
             if guest_vm.get_spice_var("listening_addr") == "ipv6":
-               host_ip_ipv6 = utils_misc.convert_ipv4_to_ipv6(host_ip)
                cmd += " spice://[%s]?port=%s" % (host_ip_ipv6, host_port)
             else:
                cmd += " spice://%s?port=%s" % (host_ip, host_port)
@@ -164,6 +165,24 @@ def launch_rv(client_vm, guest_vm, params):
             logging.info("remote-viewer connection failed as expected")
         else:
             raise error.TestFail("remote-viewer connection failed") 
+
+    #Get spice info
+    output = guest_vm.monitor.cmd("info spice")
+    logging.debug("INFO SPICE")
+    logging.debug(output)
+
+    #Find out what to check for
+    # Check to see if ipv6 address is reported back from qemu monitor
+    if (check_spice_info == "ipv6"):
+        logging.info("Test to check if ipv6 address is reported back from the qemu monitor")
+        if (host_ip_ipv6 in output):
+            logging.info("Reported ipv6 address found in output from 'info spice'")
+        else:
+            raise error.TestFail("ipv6 address not found from qemu monitor command: 'info spice'")
+    #check qemu monitor spice info for other values
+    #elif (check_spice_info == "another value"):
+    else:
+        logging.info("Not checking the value of 'info spice' from the qemu monitor")
 
     #prevent from kill remote-viewer after test finish
     cmd = "disown -ar"
