@@ -29,6 +29,7 @@ KVM_TEST_LOGGING
 @network-tools
 @x11
 @basic-desktop
+@fonts
 NetworkManager
 ntpdate
 watchdog
@@ -38,6 +39,7 @@ spice-xpi
 virt-viewer
 spice-vdagent
 usbredir
+python-imaging
 SDL
 %end
 
