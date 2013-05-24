@@ -29,6 +29,7 @@ KVM_TEST_LOGGING
 @network-tools
 @x11
 @basic-desktop
+@Smart Card Support
 NetworkManager
 ntpdate
 watchdog
