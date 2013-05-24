@@ -1557,6 +1557,18 @@ class VM(virt_vm.BaseVM):
         if params.get("enable_sga") == "yes":
             qemu_cmd += add_sga(help_text)
 
+        if params.get("smartcard") == "yes":
+            usb_type = params.get("usb_sc_type")
+            usb_id = params.get("usb_id")
+            sc_chardev = params.get("smartcard_chardev")
+            sc_id = params.get("smartcard_id")
+
+            qemu_cmd += " -device " + usb_type + ",id=" + usb_id
+            qemu_cmd += " -chardev " + sc_chardev
+            qemu_cmd += ",id=" + sc_id + ",name=smartcard"
+            qemu_cmd += " -device ccid-card-passthru,chardev=" + sc_id
+           
+
         return qemu_cmd
 
 
