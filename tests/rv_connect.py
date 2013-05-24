@@ -66,6 +66,9 @@ def launch_rv(client_vm, guest_vm, params):
     ticket = None
     ticket_send = params.get("spice_password_send")
     qemu_ticket = params.get("qemu_password")
+    gencerts = params.get("gencerts")
+    certdb = params.get("certdb")
+    smartcard_test = params.get("smartcard_test")
 
     #If qemu_ticket is set, set the password of the VM using the qemu-monitor
     if qemu_ticket:
@@ -120,6 +123,21 @@ def launch_rv(client_vm, guest_vm, params):
     if full_screen == "yes":
         logging.info("Remote Viewer Set to use Full Screen")
         cmd += " --full-screen"
+
+    # Check to see if the test is using a smartcard.
+    if smartcard_test == "yes":
+        logging.info("remote viewer Set to use a smartcard")
+        cmd += " --spice-smartcard"
+
+        if certdb != None:
+            logging.debug("Remote Viewer set to use the following certificate"
+                          " database: " + certdb)
+            cmd += " --spice-smartcard-db " + certdb
+
+        if gencerts != None:
+            logging.debug("Remote Viewer set to use the following certs: " + 
+                          gencerts)
+            cmd += " --spice-smartcard-certificates " + gencerts
 
 
     cmd = "nohup " + cmd + " &> /dev/null &" # Launch it on background
