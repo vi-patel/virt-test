@@ -109,12 +109,12 @@ def run_rv_gui(test, params, env):
             checkresequal(guest_res, guest_res2, logstr)
             if i == "zoomin":
                 #verify the rv window has increased
-                errorstr = "Checking the guest resolution has increased"
+                errorstr = "Checking the rv window's resolution has increased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res, rv_res2, errorstr)
             if i == "zoomout":
                 #verify the rv window has decreased
-                errorstr = "Checking the guest resolution has decreased"
+                errorstr = "Checking the rv window's resolution has decreased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
         
