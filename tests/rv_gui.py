@@ -70,7 +70,6 @@ def run_rv_gui(test, params, env):
     guest_vm.verify_alive()
     guest_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
-
     #update host_port
     host_port = guest_vm.get_spice_var("spice_port")
 
@@ -84,7 +83,7 @@ def run_rv_gui(test, params, env):
     client_session.cmd('. /home/test/.dbus/session-bus/`cat /var/lib/dbus/machine-id`-0')
     client_session.cmd('export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID')
     client_session.cmd("cd %s" % params.get("test_script_tgt"))
-   
+
     logging.info("Executing gui tests: %s" % tests)
 
     for i in tests:
@@ -117,6 +116,13 @@ def run_rv_gui(test, params, env):
                 errorstr = "Checking the rv window's resolution has decreased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
+        if i in ("quit_menu", "quit_shortcut"):
+            #Verify for quit tests that remote viewer is not running on client
+            try:
+                pidoutput = str(client_session.cmd("pgrep remote-viewer"))
+                raise error.TestFail("Remote-viewer is still running on the client.")
+            except ShellCmdError:
+                logging.info("Remote-viewer process is not running as expected.")
         
     if errors:
         raise error.TestFail("%d GUI tests failed, see log for more details" % errors)
