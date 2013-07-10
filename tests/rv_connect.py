@@ -182,13 +182,21 @@ def run_rv_connect(test, params, env):
     guest_vm.verify_alive()
     guest_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
+    guest_root_session = guest_vm.wait_for_login(username = "root", password = "123456", timeout=int(params.get("login_timeout", 360)))
 
     client_vm = env.get_vm(params["client_vm"])
     client_vm.verify_alive()
     client_session = client_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
+    client_root_session = client_vm.wait_for_login(username = "root", password = "123456", timeout=int(params.get("login_timeout", 360)))
 
     utils_spice.wait_timeout(15)
+
+    logging.info("Restarting GDM session on client")
+    client_root_session.cmd("killall gdm-binary")
+
+    logging.info("Restarting GDM session on guest")
+    guest_root_session.cmd("killall gdm-binary")
 
     launch_rv(client_vm, guest_vm, params)
 
