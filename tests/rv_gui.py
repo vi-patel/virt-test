@@ -83,12 +83,12 @@ def run_rv_gui(test, params, env):
     client_session.cmd('. /home/test/.dbus/session-bus/`cat /var/lib/dbus/machine-id`-0')
     client_session.cmd('export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID')
     client_session.cmd("cd %s" % params.get("test_script_tgt"))
-
+    rv_res_orig = getrvgeometry(client_session, host_port, host_ip)
     logging.info("Executing gui tests: %s" % tests)
 
     for i in tests:
         logging.info("Test: %20s" % i)        
-        if i in ("zoomin", "zoomout"):
+        if i in ("zoomin", "zoomout", "zoomnorm"):
             #Get preliminary information needed for the zoom tests
             guest_res = getres(guest_session)
             rv_res = getrvgeometry(client_session, host_port, host_ip)
@@ -100,7 +100,7 @@ def run_rv_gui(test, params, env):
         else:
             logging.info("Status:         PASS")
 
-        if i in ("zoomin", "zoomout"):
+        if i in ("zoomin", "zoomout", "zoomnorm"):
             guest_res2 = getres(guest_session)
             rv_res2 = getrvgeometry(client_session, host_port, host_ip)
             #Check to see that the resolution doesn't change
@@ -116,6 +116,10 @@ def run_rv_gui(test, params, env):
                 errorstr = "Checking the rv window's resolution has decreased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
+            if i == "zoomnorm":
+                errorstr = "Checking the rv window's size is the same as it was originally when rv was started."
+                checkresequal(rv_res2, rv_res_orig, errorstr)
+
         if i in ("quit_menu", "quit_shortcut"):
             #Verify for quit tests that remote viewer is not running on client
             try:
