@@ -33,10 +33,9 @@ def setup_vm(vm, params):
     if session.cmd_status("rpm -q dogtail"):
         install_dogtail(session, params.get("dogtail_rpm"))
     deploy_tests(vm, params)
-    logging.info("Restarting GDM session")
-    session.cmd("killall gdm-binary")
 
 def run_rv_setup(test, params, env):
     for vm in params.get("vms").split():
         logging.info("Setting up VM: %s" % vm)
         setup_vm(env.get_vm(vm), params)
+
