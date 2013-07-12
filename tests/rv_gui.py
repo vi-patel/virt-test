@@ -1,4 +1,4 @@
-import logging
+import os, logging
 from time import sleep
 from autotest.client.shared import error
 from virttest.aexpect import ShellCmdError
@@ -57,6 +57,10 @@ def checkresequal(res1, res2, logmessage):
 def run_rv_gui(test, params, env):
     #Get required paramters 
     host_ip = utils_net.get_host_ip_address(params)
+    screenshot_dir = params.get("screenshot_dir")
+    screenshot_name = params.get("screenshot_name")
+    screenshot_exp_name = params.get("screenshot_expected_name")
+    screenshot_exp_file = os.path.join(screenshot_dir, screenshot_exp_name)
     host_port = None
     guest_res = ""
     guest_res2 = ""
@@ -82,16 +86,30 @@ def run_rv_gui(test, params, env):
     guest_session.cmd("export DISPLAY=:0.0")
     client_session.cmd('. /home/test/.dbus/session-bus/`cat /var/lib/dbus/machine-id`-0')
     client_session.cmd('export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID')
+   
     client_session.cmd("cd %s" % params.get("test_script_tgt"))
     rv_res_orig = getrvgeometry(client_session, host_port, host_ip)
     logging.info("Executing gui tests: %s" % tests)
 
     for i in tests:
         logging.info("Test: %20s" % i)        
-        if i in ("zoomin", "zoomout", "zoomnorm"):
+
+        #Verification that needst to be done prior to running the gui test.
+        if i in ("zoomin", "zoomout", "zoomnorm", "zoomin_shortcut", "zoomout_shortcut", "zoomnorm_shortcut"):
             #Get preliminary information needed for the zoom tests
             guest_res = getres(guest_session)
             rv_res = getrvgeometry(client_session, host_port, host_ip)
+
+        # if i in ("screenshot"):
+        if "screenshot" in i:
+            try:
+                client_session.cmd('[ -e ' + screenshot_exp_file +' ]')
+                client_session.cmd('rm ' + screenshot_exp_file)
+                print "Not expecting to get here, deleted: " + screenshot_exp_file
+            except ShellCmdError:
+                print screenshot_exp_name + " does not exist as expected."
+
+
         try:
             logging.info(client_session.cmd("./unittests/%s_rv.py" % i))
         except:
@@ -100,23 +118,25 @@ def run_rv_gui(test, params, env):
         else:
             logging.info("Status:         PASS")
 
-        if i in ("zoomin", "zoomout", "zoomnorm"):
+
+        #Verification Needed after the gui test was run
+        if i in ("zoomin", "zoomout", "zoomnorm", "zoomin_shortcut", "zoomout_shortcut", "zoomnorm_shortcut"):
             guest_res2 = getres(guest_session)
             rv_res2 = getrvgeometry(client_session, host_port, host_ip)
             #Check to see that the resolution doesn't change
             logstr = "Checking that the guest's resolution doesn't change"
             checkresequal(guest_res, guest_res2, logstr)
-            if i == "zoomin":
+            if i == "zoomin" or i == "zoomin_shortcut":
                 #verify the rv window has increased
                 errorstr = "Checking the rv window's resolution has increased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res, rv_res2, errorstr)
-            if i == "zoomout":
+            if i == "zoomout" or i == "zoomout_shortcut":
                 #verify the rv window has decreased
                 errorstr = "Checking the rv window's resolution has decreased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
-            if i == "zoomnorm":
+            if i == "zoomnorm" or i == "zoomnorm_shortcut":
                 errorstr = "Checking the rv window's size is the same as it was originally when rv was started."
                 checkresequal(rv_res2, rv_res_orig, errorstr)
 
@@ -127,6 +147,14 @@ def run_rv_gui(test, params, env):
                 raise error.TestFail("Remote-viewer is still running on the client.")
             except ShellCmdError:
                 logging.info("Remote-viewer process is not running as expected.")
-        
+        if "screenshot" in i:
+            #Verify the screenshot was created and clean up
+            try:
+                client_session.cmd('[ -e ' + screenshot_exp_file + ' ]')
+                client_session.cmd('rm ' + screenshot_exp_file)
+                print screenshot_exp_name + " was created as expected"
+            except ShellCmdError:
+                raise error.TestFail("Screenshot " + screenshot_exp_file + " was not created")
+ 
     if errors:
         raise error.TestFail("%d GUI tests failed, see log for more details" % errors)
