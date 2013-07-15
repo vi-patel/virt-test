@@ -2,7 +2,7 @@ import os, logging
 from time import sleep
 from autotest.client.shared import error
 from virttest.aexpect import ShellCmdError
-from virttest import utils_net
+from virttest import utils_net, utils_spice
 
 def getres(guest_session):
     try:
@@ -60,7 +60,7 @@ def run_rv_gui(test, params, env):
     screenshot_dir = params.get("screenshot_dir")
     screenshot_name = params.get("screenshot_name")
     screenshot_exp_name = params.get("screenshot_expected_name")
-    screenshot_exp_file = os.path.join(screenshot_dir, screenshot_exp_name)
+    screenshot_exp_file = ""
     host_port = None
     guest_res = ""
     guest_res2 = ""
@@ -94,7 +94,7 @@ def run_rv_gui(test, params, env):
     for i in tests:
         logging.info("Test: %20s" % i)        
 
-        #Verification that needst to be done prior to running the gui test.
+        #Verification that needs to be done prior to running the gui test.
         if i in ("zoomin", "zoomout", "zoomnorm", "zoomin_shortcut", "zoomout_shortcut", "zoomnorm_shortcut"):
             #Get preliminary information needed for the zoom tests
             guest_res = getres(guest_session)
@@ -102,6 +102,7 @@ def run_rv_gui(test, params, env):
 
         # if i in ("screenshot"):
         if "screenshot" in i:
+            screenshot_exp_file = os.path.join(screenshot_dir, screenshot_exp_name)
             try:
                 client_session.cmd('[ -e ' + screenshot_exp_file +' ]')
                 client_session.cmd('rm ' + screenshot_exp_file)
@@ -117,6 +118,9 @@ def run_rv_gui(test, params, env):
             errors +=1
         else:
             logging.info("Status:         PASS")
+
+        #Wait before doing any verification
+        utils_spice.wait_timeout(3)
 
 
         #Verification Needed after the gui test was run
@@ -155,6 +159,14 @@ def run_rv_gui(test, params, env):
                 print screenshot_exp_name + " was created as expected"
             except ShellCmdError:
                 raise error.TestFail("Screenshot " + screenshot_exp_file + " was not created")
- 
+        if "fullscreen" in i:
+            #Verify that client's res = guests's res
+            guest_res = getres(guest_session)
+            client_res = getres(client_session)
+            if(client_res == guest_res):
+                logging.info("PASS: Guest resolution is the same as the client")
+            else:
+                raise error.TestFail("Guest resolution: %s differs from the client: %s" %(guest_res, client_res))
+
     if errors:
         raise error.TestFail("%d GUI tests failed, see log for more details" % errors)
