@@ -66,6 +66,7 @@ def run_rv_gui(test, params, env):
     guest_res2 = ""
     rv_res = ""
     rv_res2 = ""
+    rv_binary = params.get("rv_binary", "remote-viewer")
 
     tests = params.get("rv_gui_test_list").split()
     errors = 0
@@ -74,6 +75,7 @@ def run_rv_gui(test, params, env):
     guest_vm.verify_alive()
     guest_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
+    
     #update host_port
     host_port = guest_vm.get_spice_var("spice_port")
 
@@ -86,7 +88,8 @@ def run_rv_gui(test, params, env):
     guest_session.cmd("export DISPLAY=:0.0")
     client_session.cmd('. /home/test/.dbus/session-bus/`cat /var/lib/dbus/machine-id`-0')
     client_session.cmd('export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID')
-   
+  
+ 
     client_session.cmd("cd %s" % params.get("test_script_tgt"))
     rv_res_orig = getrvgeometry(client_session, host_port, host_ip)
     logging.info("Executing gui tests: %s" % tests)
@@ -110,9 +113,15 @@ def run_rv_gui(test, params, env):
             except ShellCmdError:
                 print screenshot_exp_name + " does not exist as expected."
 
+        cmd = "./unittests/%s_rv.py" % i
 
+        #Adding parameters to the test
+        if (i == "connect"):
+            cmd += " 'spice://%s:%s'" % (host_ip, host_port)
+
+        #Run the test
         try:
-            logging.info(client_session.cmd("./unittests/%s_rv.py" % i))
+            logging.info(client_session.cmd(cmd))
         except:
             logging.error("Status:         FAIL")
             errors +=1
@@ -120,7 +129,7 @@ def run_rv_gui(test, params, env):
             logging.info("Status:         PASS")
 
         #Wait before doing any verification
-        utils_spice.wait_timeout(3)
+        utils_spice.wait_timeout(5)
 
 
         #Verification Needed after the gui test was run
@@ -132,12 +141,12 @@ def run_rv_gui(test, params, env):
             checkresequal(guest_res, guest_res2, logstr)
             if i == "zoomin" or i == "zoomin_shortcut":
                 #verify the rv window has increased
-                errorstr = "Checking the rv window's resolution has increased"
+                errorstr = "Checking the rv window's size has increased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res, rv_res2, errorstr)
             if i == "zoomout" or i == "zoomout_shortcut":
                 #verify the rv window has decreased
-                errorstr = "Checking the rv window's resolution has decreased"
+                errorstr = "Checking the rv window's size has decreased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
             if i == "zoomnorm" or i == "zoomnorm_shortcut":
@@ -167,6 +176,12 @@ def run_rv_gui(test, params, env):
                 logging.info("PASS: Guest resolution is the same as the client")
             else:
                 raise error.TestFail("Guest resolution: %s differs from the client: %s" %(guest_res, client_res))
+        #Verify a connection is established
+        if i == "connect":
+            try:
+                utils_spice.verify_established(client_vm, host_ip, host_port, rv_binary)
+            except utils_spice.RVConnectError:
+                raise error.TestFail("remote-viewer connection failed")
 
     if errors:
         raise error.TestFail("%d GUI tests failed, see log for more details" % errors)
