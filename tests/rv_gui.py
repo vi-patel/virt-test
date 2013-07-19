@@ -32,6 +32,21 @@ def getrvgeometry(client_session, host_port, host_ip):
         raise error.TestFail("Could not get the geometry of the rv window")
     return rv_res
 
+def getrvcorners(client_session, host_port, host_ip):
+    rv_xinfo_cmd = "xwininfo -name 'spice://%s?port=%s (1) - Remote Viewer'" % (host_ip, host_port)
+    rv_xinfo_cmd += " | grep Corners"
+    try:
+        rv_corners_raw = client_session.cmd(rv_xinfo_cmd)
+        rv_corners = rv_corners_raw.strip()
+        #print rv_res_raw
+        #print rv_res
+    except ShellCmdError:
+        raise error.TestFail("Could not get the geometry of the rv window")
+    except IndexError:
+        raise error.TestFail("Could not get the geometry of the rv window")
+    return rv_corners
+
+
 def checkgeometryincrease(rv_res, rv_res2, errorstr):
     #Verify the height of has increased
     if(int(rv_res.split('x')[0]) < int(rv_res2.split('x')[0])):
@@ -60,6 +75,7 @@ def run_rv_gui(test, params, env):
     screenshot_dir = params.get("screenshot_dir")
     screenshot_name = params.get("screenshot_name")
     screenshot_exp_name = params.get("screenshot_expected_name")
+    expected_rv_corners_fs = "Corners:  +0+0  -0+0  -0-0  +0-0"
     screenshot_exp_file = ""
     host_port = None
     guest_res = ""
@@ -120,6 +136,7 @@ def run_rv_gui(test, params, env):
             cmd += " 'spice://%s:%s'" % (host_ip, host_port)
 
         #Run the test
+        print "Running test: " + cmd
         try:
             logging.info(client_session.cmd(cmd))
         except:
@@ -168,14 +185,39 @@ def run_rv_gui(test, params, env):
                 print screenshot_exp_name + " was created as expected"
             except ShellCmdError:
                 raise error.TestFail("Screenshot " + screenshot_exp_file + " was not created")
-        if "fullscreen" in i:
+        if i == "fullscreen" or i == "fullscreen_shortcut":
             #Verify that client's res = guests's res
             guest_res = getres(guest_session)
             client_res = getres(client_session)
+            rv_geometry = getrvgeometry(client_session, host_port, host_ip)
+            rv_corners = getrvcorners(client_session, host_port, host_ip)
             if(client_res == guest_res):
                 logging.info("PASS: Guest resolution is the same as the client")
+                #Verification #2, client's res = rv's geometry
+                if(client_res == rv_geometry):
+                    logging.info("PASS client's res = geometry of rv window")
+                else:
+                    raise error.TestFail("Client resolution: %s differs from the rv window's geometry: %s" %(client_res, rv_geometry))
+
             else:
                 raise error.TestFail("Guest resolution: %s differs from the client: %s" %(guest_res, client_res))
+            #Verification #3, verify the rv window is at the top corner
+            if(rv_corners == expected_rv_corners_fs):
+                logging.info("PASS: rv window is at the top corner: " + rv_corners)
+            else:
+                raise error.TestFail("rv window is not at the top corner as expected, it is at: " + rv_corners)
+        #Verify rv window < client's res
+        if i == "leave_fullscreen" or i == "leave_fullscreen_shortcut":
+            rv_corners = getrvcorners(client_session, host_port, host_ip)
+            if(rv_corners != expected_rv_corners_fs):
+                logging.info("PASS: rv window is not at top corner as expected: " + rv_corners)
+            else:
+                raise error.TestFail("rv window is full screen, leaving full screen failed.")
+            #rv_geometry = getrvgeometry(client_session, host_port, host_ip)
+            #client_res = getres(client_session)
+            #errorstr = "Checking that rv window's geometry is less than the client's resolution"
+            #checkgeometryincrease(rv_geometry, client_res, errorstr)
+
         #Verify a connection is established
         if i == "connect":
             try:
