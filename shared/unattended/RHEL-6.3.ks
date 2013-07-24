@@ -30,6 +30,7 @@ KVM_TEST_LOGGING
 @x11
 @basic-desktop
 @fonts
+gnome-utils
 NetworkManager
 ntpdate
 watchdog
