@@ -91,7 +91,11 @@ def run_rv_gui(test, params, env):
     guest_vm.verify_alive()
     guest_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
-    
+    guest_root_session = guest_vm.wait_for_login(
+            timeout=int(params.get("login_timeout", 360)),
+            username="root", password="123456")
+   
+ 
     #update host_port
     host_port = guest_vm.get_spice_var("spice_port")
 
@@ -218,6 +222,34 @@ def run_rv_gui(test, params, env):
             #errorstr = "Checking that rv window's geometry is less than the client's resolution"
             #checkgeometryincrease(rv_geometry, client_res, errorstr)
 
+        if "printscreen" in i:
+            output = guest_root_session.cmd("ps aux | grep gnome-screenshot")
+            index = 1
+            found = 0
+            list = output.splitlines()
+            for line in list:
+                print str(index) + " " + line
+                index += 1
+                list2 = line.split()
+                #get gnome-screenshot info
+                gss_pid =  str(list2[1])
+                gss_process_name = str(list2[10])
+                #Verify gnome-screenshot is running and kill it
+                if str(list2[10]) == "gnome-screenshot":
+                    found = 1
+                    guest_root_session.cmd("kill " + gss_pid)
+                    break
+                else:
+                    continue
+            if not (found):
+                raise error.TestFail("gnome-screenshot is not running as expected.")
+
+        #Verify the shutdown dialog is present
+        if "ctrl_alt_del" in i:
+            #looking for a blank named dialog will not work for RHEL 7
+            #Will need to find a better solution to verify the shutdown dialog has come up
+            guest_session.cmd("xwininfo -name ''")
+     
         #Verify a connection is established
         if i == "connect":
             try:
