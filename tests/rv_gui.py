@@ -1,13 +1,26 @@
+"""
+rv_gui.py - A test to run dogtail gui tests from the client.
+            The test also does verification of the gui tests.
+
+Requires:
+1. rv_setup must be run to have dogtail be installed on the client
+2. rv_connect must be run to restart the gdm session.
+              and have to have both client & remote viewer window available.
+"""
 import os, logging
-from time import sleep
 from autotest.client.shared import error
 from virttest.aexpect import ShellCmdError
 from virttest import utils_net, utils_spice
 
-def getres(guest_session):
+def getres(vm_session):
+    """
+    Gets the resolution of a VM
+
+    @param vm_session: cmd session of a VM
+    """
     try:
-        guest_session.cmd("xrandr | grep '*' >/tmp/res")
-        guest_res_raw = guest_session.cmd("cat /tmp/res|awk '{print $1}'")
+        vm_session.cmd("xrandr | grep '*' >/tmp/res")
+        guest_res_raw = vm_session.cmd("cat /tmp/res|awk '{print $1}'")
         guest_res = guest_res_raw.split()[0]
     except ShellCmdError:
         raise error.TestFail("Could not get guest resolution, xrandr output:" +
@@ -18,7 +31,15 @@ def getres(guest_session):
     return guest_res
 
 def getrvgeometry(client_session, host_port, host_ip):
-    rv_xinfo_cmd = "xwininfo -name 'spice://%s?port=%s (1) - Remote Viewer'" % (host_ip, host_port)
+    """
+    Gets the geometry of the rv_window from the client session
+
+    @param client_session: cmd session of the client.
+    @param host_port: host port where the vms are running
+    @param host_ip: host ip where the vms are running
+    """
+    rv_xinfo_cmd = "xwininfo -name 'spice://%s?port=%s (1) - Remote Viewer'" \
+                   % (host_ip, host_port)
     rv_xinfo_cmd += " | grep geometry"
     try:
         rv_res_raw = client_session.cmd(rv_xinfo_cmd)
@@ -33,7 +54,15 @@ def getrvgeometry(client_session, host_port, host_ip):
     return rv_res
 
 def getrvcorners(client_session, host_port, host_ip):
-    rv_xinfo_cmd = "xwininfo -name 'spice://%s?port=%s (1) - Remote Viewer'" % (host_ip, host_port)
+    """
+    Gets the coordinates of the 4 corners of the rv window
+
+    @param client_session: cmd session of the client.
+    @param host_port: host port where the vms are running
+    @param host_ip: host ip where the vms are running
+    """
+    rv_xinfo_cmd = "xwininfo -name 'spice://%s?port=%s (1) - Remote Viewer'" \
+                   % (host_ip, host_port)
     rv_xinfo_cmd += " | grep Corners"
     try:
         rv_corners_raw = client_session.cmd(rv_xinfo_cmd)
@@ -48,20 +77,41 @@ def getrvcorners(client_session, host_port, host_ip):
 
 
 def checkgeometryincrease(rv_res, rv_res2, errorstr):
+    """
+    Checks for an increase in resolution or geometry
+
+    @param rv_res: original resolution
+    @param rv_res2: secondary resolution that is greater
+    @errorstr: user defined error string if the check fails
+    """
+    #Get the required information
+    height1 = int(rv_res.split('x')[0])
+    height2 = int(rv_res2.split('x')[0])
+
+    #The second split of - is a workaround because the xwinfo sometimes
+    #prints out dashes after the resolution for some reason.
+    width1 = int(rv_res.split('x')[1].split('-')[0])
+    width2 = int(rv_res2.split('x')[1].split('-')[0])
+
     #Verify the height of has increased
-    if(int(rv_res.split('x')[0]) < int(rv_res2.split('x')[0])):
+    if(height2 > height1):
         logging.info("Height check was successful")
     else:
         raise error.TestFail("Checking height: " + errorstr)
-    #Verify the width of rv window increased after zooming in
-    #The second split of - is a workaround because the xwinfo sometimes
-    #prints out dashes after the resolution for some reason.
-    if(int(rv_res.split('x')[1].split('-')[0]) < int(rv_res2.split('x')[1].split('-')[0])):
+    #Verify the width of rv window increased after zooming
+    if(width2 > width1):
         logging.info("Width check was successful")
     else:
         raise error.TestFail("Checking width: " + errorstr)
 
 def checkresequal(res1, res2, logmessage):
+    """
+    Checks for an increase in resolution or geometry
+
+    @param rv_res1: original resolution
+    @param rv_res2: secondary resolution that should be equal
+    @logmessage: user defined error string if the check fails
+    """
     #Verify the resolutions are equal
     logging.info(logmessage)
     if res1 == res2:
@@ -70,10 +120,18 @@ def checkresequal(res1, res2, logmessage):
         raise error.TestFail("Resolution of the guest has changed")
 
 def run_rv_gui(test, params, env):
-    #Get required paramters 
+    """
+    Tests GUI automation of remote-viewer
+
+    @param test: QEMU test object.
+    @param params: Dictionary with the test parameters.
+    @param env: Dictionary with test environment.
+    """
+
+    #Get required paramters
     host_ip = utils_net.get_host_ip_address(params)
     screenshot_dir = params.get("screenshot_dir")
-    screenshot_name = params.get("screenshot_name")
+    #screenshot_name = params.get("screenshot_name")
     screenshot_exp_name = params.get("screenshot_expected_name")
     expected_rv_corners_fs = "Corners:  +0+0  -0+0  -0-0  +0-0"
     screenshot_exp_file = ""
@@ -86,7 +144,7 @@ def run_rv_gui(test, params, env):
 
     tests = params.get("rv_gui_test_list").split()
     errors = 0
-    
+
     guest_vm = env.get_vm(params["guest_vm"])
     guest_vm.verify_alive()
     guest_session = guest_vm.wait_for_login(
@@ -94,8 +152,8 @@ def run_rv_gui(test, params, env):
     guest_root_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)),
             username="root", password="123456")
-   
- 
+
+
     #update host_port
     host_port = guest_vm.get_spice_var("spice_port")
 
@@ -106,32 +164,36 @@ def run_rv_gui(test, params, env):
 
     client_session.cmd("export DISPLAY=:0.0")
     guest_session.cmd("export DISPLAY=:0.0")
-    client_session.cmd('. /home/test/.dbus/session-bus/`cat /var/lib/dbus/machine-id`-0')
-    client_session.cmd('export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID')
-  
- 
+    client_session.cmd('. /home/test/.dbus/session-bus/`cat ' + \
+                       '/var/lib/dbus/machine-id`-0')
+    client_session.cmd('export DBUS_SESSION_BUS_ADDRESS ' + \
+                       'DBUS_SESSION_BUS_PID DBUS_SESSION_BUS_WINDOWID')
+
+
     client_session.cmd("cd %s" % params.get("test_script_tgt"))
     rv_res_orig = getrvgeometry(client_session, host_port, host_ip)
-    logging.info("Executing gui tests: %s" % tests)
+    logging.info("Executing gui tests: " + str(tests))
 
+    #Go through all tests to be run
     for i in tests:
-        logging.info("Test: %20s" % i)        
+        logging.info("Test: " + i)
 
         #Verification that needs to be done prior to running the gui test.
-        if i in ("zoomin", "zoomout", "zoomnorm", "zoomin_shortcut", "zoomout_shortcut", "zoomnorm_shortcut"):
+        if "zoom" in i:
             #Get preliminary information needed for the zoom tests
             guest_res = getres(guest_session)
             rv_res = getrvgeometry(client_session, host_port, host_ip)
 
         # if i in ("screenshot"):
         if "screenshot" in i:
-            screenshot_exp_file = os.path.join(screenshot_dir, screenshot_exp_name)
+            screenshot_exp_file = os.path.join(screenshot_dir, \
+                                               screenshot_exp_name)
             try:
                 client_session.cmd('[ -e ' + screenshot_exp_file +' ]')
                 client_session.cmd('rm ' + screenshot_exp_file)
-                print "Not expecting to get here, deleted: " + screenshot_exp_file
+                logging.info("Deleted: " + screenshot_exp_file)
             except ShellCmdError:
-                print screenshot_exp_name + " does not exist as expected."
+                logging.info(screenshot_exp_name + " doesn't exist, continue")
 
         cmd = "./unittests/%s_rv.py" % i
 
@@ -145,16 +207,15 @@ def run_rv_gui(test, params, env):
             logging.info(client_session.cmd(cmd))
         except:
             logging.error("Status:         FAIL")
-            errors +=1
+            errors += 1
         else:
             logging.info("Status:         PASS")
 
         #Wait before doing any verification
         utils_spice.wait_timeout(5)
 
-
         #Verification Needed after the gui test was run
-        if i in ("zoomin", "zoomout", "zoomnorm", "zoomin_shortcut", "zoomout_shortcut", "zoomnorm_shortcut"):
+        if "zoom" in i:
             guest_res2 = getres(guest_session)
             rv_res2 = getrvgeometry(client_session, host_port, host_ip)
             #Check to see that the resolution doesn't change
@@ -171,16 +232,17 @@ def run_rv_gui(test, params, env):
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
             if i == "zoomnorm" or i == "zoomnorm_shortcut":
-                errorstr = "Checking the rv window's size is the same as it was originally when rv was started."
+                errorstr = "Checking the rv window's size is the same as " + \
+                           "it was originally when rv was started."
                 checkresequal(rv_res2, rv_res_orig, errorstr)
 
         if i in ("quit_menu", "quit_shortcut"):
             #Verify for quit tests that remote viewer is not running on client
             try:
-                pidoutput = str(client_session.cmd("pgrep remote-viewer"))
-                raise error.TestFail("Remote-viewer is still running on the client.")
+                rvpid = str(client_session.cmd("pgrep remote-viewer"))
+                raise error.TestFail("Remote-viewer is still running: " + rvpid)
             except ShellCmdError:
-                logging.info("Remote-viewer process is not running as expected.")
+                logging.info("Remote-viewer process is no longer running.")
         if "screenshot" in i:
             #Verify the screenshot was created and clean up
             try:
@@ -188,7 +250,8 @@ def run_rv_gui(test, params, env):
                 client_session.cmd('rm ' + screenshot_exp_file)
                 print screenshot_exp_name + " was created as expected"
             except ShellCmdError:
-                raise error.TestFail("Screenshot " + screenshot_exp_file + " was not created")
+                raise error.TestFail("Screenshot " + screenshot_exp_file + \
+                                     " was not created")
         if i == "fullscreen" or i == "fullscreen_shortcut":
             #Verify that client's res = guests's res
             guest_res = getres(guest_session)
@@ -201,33 +264,34 @@ def run_rv_gui(test, params, env):
                 if(client_res == rv_geometry):
                     logging.info("PASS client's res = geometry of rv window")
                 else:
-                    raise error.TestFail("Client resolution: %s differs from the rv window's geometry: %s" %(client_res, rv_geometry))
+                    raise error.TestFail("Client resolution: " + client_res + \
+                            " differs from  the rv's geometry: " + rv_geometry)
 
             else:
-                raise error.TestFail("Guest resolution: %s differs from the client: %s" %(guest_res, client_res))
+                raise error.TestFail("Guest resolution: " + guest_res + \
+                      "differs from the client: " + client_res)
             #Verification #3, verify the rv window is at the top corner
             if(rv_corners == expected_rv_corners_fs):
-                logging.info("PASS: rv window is at the top corner: " + rv_corners)
+                logging.info("PASS: rv window is at the top corner: " + \
+                             rv_corners)
             else:
-                raise error.TestFail("rv window is not at the top corner as expected, it is at: " + rv_corners)
+                raise error.TestFail("rv window is not at the top corner " + \
+                                     "as expected, it is at: " + rv_corners)
         #Verify rv window < client's res
         if i == "leave_fullscreen" or i == "leave_fullscreen_shortcut":
             rv_corners = getrvcorners(client_session, host_port, host_ip)
             if(rv_corners != expected_rv_corners_fs):
-                logging.info("PASS: rv window is not at top corner as expected: " + rv_corners)
+                logging.info("PASS: rv window is not at top corner: " + \
+                             rv_corners)
             else:
-                raise error.TestFail("rv window is full screen, leaving full screen failed.")
-            #rv_geometry = getrvgeometry(client_session, host_port, host_ip)
-            #client_res = getres(client_session)
-            #errorstr = "Checking that rv window's geometry is less than the client's resolution"
-            #checkgeometryincrease(rv_geometry, client_res, errorstr)
+                raise error.TestFail("rv window, leaving full screen failed.")
 
         if "printscreen" in i:
             output = guest_root_session.cmd("ps aux | grep gnome-screenshot")
             index = 1
             found = 0
-            list = output.splitlines()
-            for line in list:
+            plist = output.splitlines()
+            for line in plist:
                 print str(index) + " " + line
                 index += 1
                 list2 = line.split()
@@ -235,27 +299,30 @@ def run_rv_gui(test, params, env):
                 gss_pid =  str(list2[1])
                 gss_process_name = str(list2[10])
                 #Verify gnome-screenshot is running and kill it
-                if str(list2[10]) == "gnome-screenshot":
+                if gss_process_name == "gnome-screenshot":
                     found = 1
                     guest_root_session.cmd("kill " + gss_pid)
                     break
                 else:
                     continue
             if not (found):
-                raise error.TestFail("gnome-screenshot is not running as expected.")
+                raise error.TestFail("gnome-screenshot is not running.")
 
         #Verify the shutdown dialog is present
         if "ctrl_alt_del" in i:
             #looking for a blank named dialog will not work for RHEL 7
-            #Will need to find a better solution to verify the shutdown dialog has come up
+            #Will need to find a better solution to verify
+            #the shutdown dialog has come up
             guest_session.cmd("xwininfo -name ''")
-     
+
         #Verify a connection is established
         if i == "connect":
             try:
-                utils_spice.verify_established(client_vm, host_ip, host_port, rv_binary)
+                utils_spice.verify_established(client_vm, host_ip, \
+                                               host_port, rv_binary)
             except utils_spice.RVConnectError:
                 raise error.TestFail("remote-viewer connection failed")
 
     if errors:
-        raise error.TestFail("%d GUI tests failed, see log for more details" % errors)
+        raise error.TestFail("%d GUI tests failed, see log for more details" \
+                             % errors)
