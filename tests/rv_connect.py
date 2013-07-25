@@ -198,6 +198,9 @@ def run_rv_connect(test, params, env):
     logging.info("Restarting GDM session on guest")
     guest_root_session.cmd("killall gdm-binary")
 
+    #Wait after gdm is restarted before attempting a rv connection.
+    utils_spice.wait_timeout(3)
+
     launch_rv(client_vm, guest_vm, params)
 
     client_session.close()
