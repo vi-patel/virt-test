@@ -31,6 +31,7 @@ KVM_TEST_LOGGING
 @basic-desktop
 @fonts
 @Smart Card Support
+gnome-utils
 NetworkManager
 ntpdate
 watchdog
