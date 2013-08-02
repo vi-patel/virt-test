@@ -10,20 +10,22 @@ Actions Currently Performed:
 Requires: the client and guest VMs to be setup.
 """
 
-import logging
+import logging, os
 from os import system, getcwd, chdir
 
-def install_dogtail(session, rpm):
+def install_rpm(session, name, rpm):
     """
     installs dogtail on a VM
 
     @param session: cmd session of a VM
-    @rpm: rpm name for dogtail
+    @rpm: rpm to be installed
+    @name name of the package
+    
     """
-    logging.info("Installing dogtail from: " + rpm)
+    logging.info("Installing " + name + " from: " + rpm)
     session.cmd("yum -y localinstall %s" % rpm)
-    if session.cmd_status("rpm -q dogtail"):
-        raise Exception("Failed to install dogtail")
+    if session.cmd_status("rpm -q " + name):
+        raise Exception("Failed to install " +  name)
 
 def deploy_tests(vm, params):
     """
@@ -59,8 +61,19 @@ def setup_vm(vm, params):
     """
     session = vm.wait_for_login(username = "root", password = "123456",
             timeout=int(params.get("login_timeout", 360)))
+    arch = params.get("vm_arch_name")
+    fedoraurl = params.get("fedoraurl")
+    wmctrl_64rpm = params.get("wmctrl_64rpm")
+    wmctrl_32rpm = params.get("wmctrl_32rpm")
+    dogtailrpm = os.path.join(fedoraurl, arch, params.get("dogtail_rpm"))
+    if arch == "x86_64":
+        wmctrlrpm = os.path.join(fedoraurl, arch, wmctrl_64rpm)
+    else:
+        wmctrlrpm = os.path.join(fedoraurl, arch, wmctrl_32rpm)
     if session.cmd_status("rpm -q dogtail"):
-        install_dogtail(session, params.get("dogtail_rpm"))
+        install_rpm(session, "dogtail", dogtailrpm)
+    if session.cmd_status("rpm -q wmctrl"):
+        install_rpm(session, "wmctrl", wmctrlrpm)
     deploy_tests(vm, params)
 
 def run_rv_setup(test, params, env):
