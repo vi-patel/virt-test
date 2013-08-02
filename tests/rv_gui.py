@@ -85,13 +85,13 @@ def checkgeometryincrease(rv_res, rv_res2, errorstr):
     @errorstr: user defined error string if the check fails
     """
     #Get the required information
-    height1 = int(rv_res.split('x')[0])
-    height2 = int(rv_res2.split('x')[0])
+    width1 = int(rv_res.split('x')[0])
+    width2 = int(rv_res2.split('x')[0])
 
     #The second split of - is a workaround because the xwinfo sometimes
     #prints out dashes after the resolution for some reason.
-    width1 = int(rv_res.split('x')[1].split('-')[0])
-    width2 = int(rv_res2.split('x')[1].split('-')[0])
+    height1 = int(rv_res.split('x')[1].split('-')[0])
+    height2 = int(rv_res2.split('x')[1].split('-')[0])
 
     #Verify the height of has increased
     if(height2 > height1):
@@ -119,6 +119,35 @@ def checkresequal(res1, res2, logmessage):
     else:
         raise error.TestFail("Resolution of the guest has changed")
 
+def percentchange(percent, init, post, msg):
+    """
+    Return the filename corresponding to a given monitor name.
+
+    @param percent: Acceptable percent change of x2 from x1.
+    @param init: original integer value
+    @param post: integer that must be within an acceptable percent of x1
+    @msg: String to explain the comparison.
+    """
+    if not isinstance(init, int):
+        init = int(init)
+    if not isinstance(post, int):
+        post = int(post)
+    if not isinstance(percent, int):
+        percent = int(percent)
+
+
+    sub = init*percent/100
+    lowerlimit = init - sub
+    upperlimit = init + sub
+    if (int(init) - sub <= int(post) and int(post) <= (int(init) + sub)):
+        logging.info(msg + str(post) + " is within a valid limit " + \
+                     str(lowerlimit) + " and " + str(upperlimit))
+    else:
+        errorstr = "Error:" + msg + post + " is outside the " + \
+                    "valid limit " + str(lowerlimit) + " and " + str(upperlimit)
+        raise error.TestFail(errorstr)
+
+
 def run_rv_gui(test, params, env):
     """
     Tests GUI automation of remote-viewer
@@ -141,7 +170,9 @@ def run_rv_gui(test, params, env):
     rv_res = ""
     rv_res2 = ""
     rv_binary = params.get("rv_binary", "remote-viewer")
-
+    changex = params.get("changex")
+    changey = params.get("changey")
+    accept_pct = params.get("accept_pct")
     tests = params.get("rv_gui_test_list").split()
     errors = 0
 
@@ -179,7 +210,7 @@ def run_rv_gui(test, params, env):
         logging.info("Test: " + i)
 
         #Verification that needs to be done prior to running the gui test.
-        if "zoom" in i:
+        if "zoom" in i or "autoresize" in i:
             #Get preliminary information needed for the zoom tests
             guest_res = getres(guest_session)
             rv_res = getrvgeometry(client_session, host_port, host_ip)
@@ -314,6 +345,51 @@ def run_rv_gui(test, params, env):
             #Will need to find a better solution to verify
             #the shutdown dialog has come up
             guest_session.cmd("xwininfo -name ''")
+
+        #If autoresize_on is run, change window geometry
+        if i == "autoresize_on" or i == "autoresize_off":
+            logging.info("Attempting to change the window size of rv to:" + \
+                         str(changex) + "x" + str(changey))
+            rv_wmctrl_cmd = "wmctrl -r 'spice://%s?port=%s (1) - Remote Viewer'" \
+                   % (host_ip, host_port)
+            rv_wmctrl_cmd += " -e 0,0,0," + str(changex) + "," + str(changey)
+            output = client_session.cmd(rv_wmctrl_cmd)
+            logging.info("Original res: " + guest_res)
+            logging.info("Original geometry: " + rv_res)
+            
+            #Wait for the rv window to change and guest to adjust resolution
+            utils_spice.wait_timeout(2)
+
+            guest_res2 = getres(guest_session)
+            rv_res2 = getrvgeometry(client_session, host_port, host_ip)
+            logging.info("After test res: " + guest_res2)
+            logging.info("After test geometry: " + rv_res2)
+          
+            #Get the required information
+            width2 = int(guest_res2.split('x')[0])
+            rvwidth2 = int(rv_res2.split('x')[0])            
+
+            #The second split of - is a workaround because the xwinfo sometimes
+            #prints out dashes after the resolution for some reason.
+            height2 = int(guest_res2.split('x')[1].split('-')[0])
+            rvheight2 = int(rv_res2.split('x')[1].split('-')[0])
+
+            #the width and height that was specified is changed w/alotted limit
+            percentchange(accept_pct, changey, rvheight2, "Height parameter:")
+            percentchange(accept_pct, changex, rvwidth2, "Width parameter:")
+
+            if i == "autoresize_on":
+                #resolution is changed, attempted to match the window
+                logging.info("Checking resolution is changed, attempted" + \
+                             " to match the window, when autoresize is on")
+                percentchange(accept_pct, rvheight2, height2, "Height parameter:")
+                percentchange(accept_pct, rvwidth2, width2, "Width parameter:") 
+            if i == "autoresize_off":
+                #resolutions did not change
+                logging.info("Checking the resolution does not change" + \
+                             ", when autoresize is off")
+                logstr = "Checking that the guest's resolution doesn't change"
+                checkresequal(guest_res, guest_res2, logstr)
 
         #Verify a connection is established
         if i == "connect":
