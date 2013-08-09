@@ -267,7 +267,7 @@ def run_rv_gui(test, params, env):
                            "it was originally when rv was started."
                 checkresequal(rv_res2, rv_res_orig, errorstr)
 
-        if i in ("quit_menu", "quit_shortcut"):
+        if i in ("quit_menu", "quit_shortcut", "close", "close_shortcut"):
             #Verify for quit tests that remote viewer is not running on client
             try:
                 rvpid = str(client_session.cmd("pgrep remote-viewer"))
