@@ -143,7 +143,7 @@ def percentchange(percent, init, post, msg):
         logging.info(msg + str(post) + " is within a valid limit " + \
                      str(lowerlimit) + " and " + str(upperlimit))
     else:
-        errorstr = "Error:" + msg + post + " is outside the " + \
+        errorstr = "Error:" + msg + str(post) + " is outside the " + \
                     "valid limit " + str(lowerlimit) + " and " + str(upperlimit)
         raise error.TestFail(errorstr)
 
@@ -252,22 +252,22 @@ def run_rv_gui(test, params, env):
             #Check to see that the resolution doesn't change
             logstr = "Checking that the guest's resolution doesn't change"
             checkresequal(guest_res, guest_res2, logstr)
-            if i == "zoomin" or i == "zoomin_shortcut":
+            if "zoomin" in i:
                 #verify the rv window has increased
                 errorstr = "Checking the rv window's size has increased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res, rv_res2, errorstr)
-            if i == "zoomout" or i == "zoomout_shortcut":
+            if "zoomout" in i:
                 #verify the rv window has decreased
                 errorstr = "Checking the rv window's size has decreased"
                 logging.info(errorstr)
                 checkgeometryincrease(rv_res2, rv_res, errorstr)
-            if i == "zoomnorm" or i == "zoomnorm_shortcut":
+            if "zoomnorm" in i:
                 errorstr = "Checking the rv window's size is the same as " + \
                            "it was originally when rv was started."
                 checkresequal(rv_res2, rv_res_orig, errorstr)
 
-        if i in ("quit_menu", "quit_shortcut", "close", "close_shortcut"):
+        if "quit" in i or "close" in i:
             #Verify for quit tests that remote viewer is not running on client
             try:
                 rvpid = str(client_session.cmd("pgrep remote-viewer"))
@@ -350,10 +350,10 @@ def run_rv_gui(test, params, env):
         if i == "autoresize_on" or i == "autoresize_off":
             logging.info("Attempting to change the window size of rv to:" + \
                          str(changex) + "x" + str(changey))
-            rv_wmctrl_cmd = "wmctrl -r 'spice://%s?port=%s (1) - Remote Viewer'" \
+            wmctrl_cmd = "wmctrl -r 'spice://%s?port=%s (1) - Remote Viewer'" \
                    % (host_ip, host_port)
-            rv_wmctrl_cmd += " -e 0,0,0," + str(changex) + "," + str(changey)
-            output = client_session.cmd(rv_wmctrl_cmd)
+            wmctrl_cmd += " -e 0,0,0," + str(changex) + "," + str(changey)
+            output = client_session.cmd(wmctrl_cmd)
             logging.info("Original res: " + guest_res)
             logging.info("Original geometry: " + rv_res)
             
@@ -382,8 +382,8 @@ def run_rv_gui(test, params, env):
                 #resolution is changed, attempted to match the window
                 logging.info("Checking resolution is changed, attempted" + \
                              " to match the window, when autoresize is on")
-                percentchange(accept_pct, rvheight2, height2, "Height parameter:")
-                percentchange(accept_pct, rvwidth2, width2, "Width parameter:") 
+                percentchange(accept_pct, rvheight2, height2, "Height param:")
+                percentchange(accept_pct, rvwidth2, width2, "Width param:") 
             if i == "autoresize_off":
                 #resolutions did not change
                 logging.info("Checking the resolution does not change" + \
