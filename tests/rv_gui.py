@@ -7,6 +7,7 @@ Requires:
 2. rv_connect must be run to restart the gdm session.
               and have to have both client & remote viewer window available.
 """
+from virttest.virt_vm import VMDeadError
 import os, logging
 from autotest.client.shared import error
 from virttest.aexpect import ShellCmdError
@@ -174,6 +175,8 @@ def run_rv_gui(test, params, env):
     changey = params.get("changey")
     accept_pct = params.get("accept_pct")
     tests = params.get("rv_gui_test_list").split()
+    rv_version = params.get("rv_version")
+    rv_version_el7 = params.get("rv_version_el7")
     errors = 0
 
     guest_vm = env.get_vm(params["guest_vm"])
@@ -193,8 +196,17 @@ def run_rv_gui(test, params, env):
     client_session = client_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
 
+    output = client_session.cmd('cat /etc/redhat-release')
+    isRHEL7 = "release 7." in output
+
     client_session.cmd("export DISPLAY=:0.0")
     guest_session.cmd("export DISPLAY=:0.0")
+    #if isRHEL7:
+    #    pass
+    #    client_session.cmd('mkdir /home/test/.dbus/session-bus/
+    #    client_session.cmd('. /home/test/.dbus/session-bus/`cat ' + \
+    #                       '/etc/machine-id`-0')
+    #else:
     client_session.cmd('. /home/test/.dbus/session-bus/`cat ' + \
                        '/var/lib/dbus/machine-id`-0')
     client_session.cmd('export DBUS_SESSION_BUS_ADDRESS ' + \
@@ -204,6 +216,12 @@ def run_rv_gui(test, params, env):
     client_session.cmd("cd %s" % params.get("test_script_tgt"))
     rv_res_orig = getrvgeometry(client_session, host_port, host_ip)
     logging.info("Executing gui tests: " + str(tests))
+
+    #Make sure Accessibility is enabled before running the GUI tests
+    if isRHEL7:
+        logging.info("Enabling accessibility")
+        client_session.cmd("export DISPLAY=:0.0")
+        client_session.cmd("gsettings set org.gnome.desktop.interface toolkit-accessibility true")
 
     #Go through all tests to be run
     for i in tests:
@@ -228,9 +246,22 @@ def run_rv_gui(test, params, env):
 
         cmd = "./unittests/%s_rv.py" % i
 
+        #Verification of the printscreen test prior to the test being run
+        if "printscreen" in i:
+            output = client_session.cmd('cat /etc/redhat-release')
+            if "release 7." in output:
+                output = guest_session.cmd('rm -vf /home/test/Pictures/Screen*')
+                logging.info("Screenshots removed: " + output)
+
         #Adding parameters to the test
         if (i == "connect"):
             cmd += " 'spice://%s:%s'" % (host_ip, host_port)
+        if (i == "help" or i =="help_accesskeys"):
+            output = client_session.cmd('cat /etc/redhat-release')
+            if "release 7." in output:
+                cmd += " " + rv_version_el7
+            else:
+                cmd += " " + rv_version
 
         #Run the test
         print "Running test: " + cmd
@@ -318,33 +349,47 @@ def run_rv_gui(test, params, env):
                 raise error.TestFail("rv window, leaving full screen failed.")
 
         if "printscreen" in i:
-            output = guest_root_session.cmd("ps aux | grep gnome-screenshot")
-            index = 1
-            found = 0
-            plist = output.splitlines()
-            for line in plist:
-                print str(index) + " " + line
-                index += 1
-                list2 = line.split()
-                #get gnome-screenshot info
-                gss_pid =  str(list2[1])
-                gss_process_name = str(list2[10])
-                #Verify gnome-screenshot is running and kill it
-                if gss_process_name == "gnome-screenshot":
-                    found = 1
-                    guest_root_session.cmd("kill " + gss_pid)
-                    break
-                else:
-                    continue
-            if not (found):
-                raise error.TestFail("gnome-screenshot is not running.")
+            output = client_session.cmd('cat /etc/redhat-release')
+            if "release 7." in output:
+                output = guest_session.cmd('ls -al /home/test/Pictures | grep Screen*')
+                logging.info("Screenshot Taken Found: " + output)
+            else:
+                output = guest_root_session.cmd("ps aux | grep gnome-screenshot")
+                index = 1
+                found = 0
+                plist = output.splitlines()
+                for line in plist:
+                    print str(index) + " " + line
+                    index += 1
+                    list2 = line.split()
+                    #get gnome-screenshot info
+                    gss_pid =  str(list2[1])
+                    gss_process_name = str(list2[10])
+                    #Verify gnome-screenshot is running and kill it
+                    if gss_process_name == "gnome-screenshot":
+                        found = 1
+                        guest_root_session.cmd("kill " + gss_pid)
+                        break
+                    else:
+                        continue
+                if not (found):
+                    raise error.TestFail("gnome-screenshot is not running.")
 
         #Verify the shutdown dialog is present
         if "ctrl_alt_del" in i:
             #looking for a blank named dialog will not work for RHEL 7
             #Will need to find a better solution to verify
             #the shutdown dialog has come up
-            guest_session.cmd("xwininfo -name ''")
+            if isRHEL7:
+                #wait 80 seconds for the VM to completely shutdown
+                utils_spice.wait_timeout(90)
+                try:
+                    guest_vm.verify_alive()
+                    raise error.TestFail("Guest VM is still alive, shutdown failed.")
+                except VMDeadError:
+                    logging.info("Guest VM is verified to be shutdown")
+            else:
+                guest_session.cmd("xwininfo -name ''")
 
         #If autoresize_on is run, change window geometry
         if i == "autoresize_on" or i == "autoresize_off":
