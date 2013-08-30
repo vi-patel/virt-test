@@ -286,16 +286,25 @@ def run_rv_connect(test, params, env):
       password = "123456", timeout=int(params.get("login_timeout", 360)))
 
 
-    utils_spice.wait_timeout(15)
+    utils_spice.wait_timeout(60)
+
+    output = client_session.cmd('cat /etc/redhat-release')
+    isRHEL7 = "release 7." in output
 
     logging.info("Restarting GDM session on client")
-    client_root_session.cmd("killall gdm-binary")
+    if isRHEL7:
+        client_root_session.cmd("killall gdm")
+    else:
+        client_root_session.cmd("killall gdm-binary")
 
     logging.info("Restarting GDM session on guest")
-    guest_root_session.cmd("killall gdm-binary")
+    if isRHEL7:
+        guest_root_session.cmd("killall gdm")
+    else:
+        guest_root_session.cmd("killall gdm-binary")
 
     #Wait after gdm is restarted before attempting a rv connection.
-    utils_spice.wait_timeout(3)
+    utils_spice.wait_timeout(10)
 
     launch_rv(client_vm, guest_vm, params)
 
