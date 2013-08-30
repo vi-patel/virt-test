@@ -28,6 +28,7 @@ def run_fullscreen_setup(test, params, env):
     guest_vm.verify_alive()
     guest_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)))
+    guest_root_session = guest_vm.wait_for_login(username="root", password="123456")
 
     utils_spice.wait_timeout(10)
 
@@ -61,7 +62,7 @@ def run_fullscreen_setup(test, params, env):
                  current + " to: " + resolution)
 
     # Start vdagent daemon
-    utils_spice.start_vdagent(guest_session, test_timeout)
+    utils_spice.start_vdagent(guest_root_session, test_timeout)
 
     client_vm = env.get_vm(params["client_vm"])
     client_vm.verify_alive()
