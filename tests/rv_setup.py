@@ -12,7 +12,7 @@ Requires: the client and guest VMs to be setup.
 
 import logging, os
 from os import system, getcwd, chdir
-from virttest import utils_spice
+from virttest import utils_misc, utils_spice
 
 def install_rpm(session, name, rpm):
     """
@@ -84,6 +84,9 @@ def setup_vm(vm, params, test):
         winvdagent = params.get("winvdagent")
         vioserial = params.get("vioserial")
         winp7 = params.get("winp7zip")
+        guest_script_req = params.get("guest_script_req")
+        guest_sr_dir = os.path.join("scripts", guest_script_req)
+        guest_sr_path = utils_misc.get_path(test.virtdir, guest_sr_dir)
         winp7_path = os.path.join(test.virtdir, 'deps', winp7)
         winqxlzip = os.path.join(test.virtdir, 'deps', winqxl)
         winvdagentzip = os.path.join(test.virtdir, 'deps', winvdagent)
@@ -100,6 +103,7 @@ def setup_vm(vm, params, test):
         vm.copy_files_to(winqxlzip, "C:\\")
         vm.copy_files_to(winvdagentzip, "C:\\")
         vm.copy_files_to(vioserialzip, "C:\\")
+        vm.copy_files_to(guest_sr_path, "C:\\")
         #Wait for p7zip to be installed and all the files to be copied over
         utils_spice.wait_timeout(10)
 
