@@ -447,24 +447,33 @@ def copy_and_paste_pos(session_to_copy_from, session_to_paste_to,
     # Get necessary params
     test_timeout = float(params.get("test_timeout", 600))
     interpreter = params.get("interpreter")
-    script = params.get("guest_script")
+    client_script = params.get("client_script")
+    guest_script = params.get("guest_script")
     script_params = params.get("script_params", "")
-    dst_path = params.get("dst_dir", "guest_script")
-    script_call = os.path.join(dst_path, script)
+    dst_path_client = params.get("dst_dir_client", "client_script")
+    dst_path_guest = params.get("dst_dir_guest", "guest_script")
+    #VP, will the following work?, should check for windows guest
+    script_call_guest = dst_path_guest + guest_script
+    script_call_client = os.path.join(dst_path_client, client_script)
     testing_text = params.get("text_to_test")
 
     # Before doing the copy and paste, verify vdagent is
     # installed and the daemon is running on the guest
-    utils_spice.verify_vdagent(guest_session, test_timeout)
+    output = guest_session.cmd('net start | FIND "Spice"')
+    if "Spice" in output:
+        print "Guest vdagent is running"
+    #VP2: Please uncomment below and fix
+    #utils_spice.verify_vdagent(guest_session, test_timeout)
     # Make sure virtio driver is running
-    utils_spice.verify_virtio(guest_session, test_timeout)
+    #VP2: Please uncomment below and fix
+    #utils_spice.verify_virtio(guest_session, test_timeout)
     # Command to copy text and put it in the keyboard, copy on the client
-    place_text_in_clipboard(session_to_copy_from, interpreter, script_call,
+    place_text_in_clipboard(session_to_copy_from, interpreter, script_call_client,
                             script_params, testing_text, test_timeout)
     # Now test to see if the copied text from the one session can be
     # pasted on the other
     verify_paste_successful(session_to_paste_to, testing_text, interpreter,
-                            script_call, test_timeout)
+                            script_call_guest, test_timeout)
 
 
 def restart_cppaste(session_to_copy_from, session_to_paste_to,
@@ -928,8 +937,10 @@ def run_rv_copyandpaste(test, params, env):
     """
     # Collect test parameters
     test_type = params.get("config_test")
-    script = params.get("guest_script")
-    dst_path = params.get("dst_dir", "guest_script")
+    client_script = params.get("client_script")
+    guest_script = params.get("guest_script")
+    dst_path_client = params.get("dst_dir_client", "client_script")
+    dst_path_guest = params.get("dst_dir_guest", "guest_script")
     image_type = params.get("image_type")
     dst_image_path = params.get("dst_dir", "image_tocopy_name")
     dst_image_path_bmp = params.get("dst_dir", "image_tocopy_name_bmp")
@@ -948,14 +959,25 @@ def run_rv_copyandpaste(test, params, env):
     guest_root_session = guest_vm.wait_for_login(
             timeout=int(params.get("login_timeout", 360)),
             username="root", password="123456")
+   
+    #get the type of OS for client and guest
+    guest_vmparams = guest_vm.get_params()
+    guest_ostype = guest_vmparams.get("os_type")
+
+    client_vmparams = client_vm.get_params()
+    client_ostype = client_vmparams.get("os_type")
+
     logging.info("Get PID of remote-viewer")
     client_session.cmd("pgrep remote-viewer")
 
     guest_vm.verify_alive()
     # The following is to copy files to the client and guest and do the test
     # copy the script to both the client and guest
-    scriptdir = os.path.join("scripts", script)
-    script_path = utils_misc.get_path(test.virtdir, scriptdir)
+    scriptdir_client = os.path.join("scripts", client_script)
+    scriptdir_guest = os.path.join("scripts", guest_script)
+    script_path_client = utils_misc.get_path(test.virtdir, scriptdir_client)
+    script_path_guest = utils_misc.get_path(test.virtdir, scriptdir_guest)
+
 
     # The following is to copy the test image to either the client or guest
     # if the test deals with images.
@@ -966,10 +988,10 @@ def run_rv_copyandpaste(test, params, env):
 
     logging.info("Transferring the clipboard script to client & guest,"
                  "destination directory: %s, source script location: %s",
-                 dst_path, script_path)
+                 dst_path_client, script_path_client)
 
-    client_vm.copy_files_to(script_path, dst_path, timeout=60)
-    guest_vm.copy_files_to(script_path, dst_path, timeout=60)
+    client_vm.copy_files_to(script_path_client, dst_path_client, timeout=60)
+    guest_vm.copy_files_to(script_path_guest, dst_path_guest, timeout=60)
 
     if "image" in test_type:
         if "client_to_guest" in test_type:
@@ -1002,12 +1024,13 @@ def run_rv_copyandpaste(test, params, env):
     client_session.cmd("export DISPLAY=:0.0")
 
     # Verify that gnome is now running on the guest
-    try:
-        guest_session.cmd("ps aux | grep -v grep | grep gnome-session")
-    except aexpect.ShellCmdError:
-        raise error.TestWarn("gnome-session was probably not correctly started")
+    if guest_ostype == "linux":
+        try:
+            guest_session.cmd("ps aux | grep -v grep | grep gnome-session")
+        except aexpect.ShellCmdError:
+            raise error.TestWarn("gnome-session was probably not correctly started")
 
-    guest_session.cmd("export DISPLAY=:0.0")
+        guest_session.cmd("export DISPLAY=:0.0")
 
 
     # Make sure the clipboards are clear before starting the test
