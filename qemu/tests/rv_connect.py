@@ -352,10 +352,18 @@ def run_rv_connect(test, params, env):
         return
 
     if params.get("clear_interface", "yes") == "yes":
+        isRHEL7 = False
         for vm in params.get("vms").split():
-            utils_spice.clear_interface(env.get_vm(vm), 
+            utils_spice.clear_interface(env.get_vm(vm),
                                        int(params.get("login_timeout", "360")))
-        utils_spice.wait_timeout(15)
+            session = env.get_vm(vm).wait_for_login(timeout=360)
+            output = session.cmd('cat /etc/redhat-release')
+            isRHEL7 = ("release 7." in output) or isRHEL7
+        if isRHEL7:
+            utils_spice.wait_timeout(60)
+        else:
+            utils_spice.wait_timeout(15)
+
 
     launch_rv(client_vm, guest_vm, params)
 
