@@ -236,15 +236,27 @@ def clear_interface(vm, login_timeout = 360, timeout = 5):
     logging.info("restarting X on: %s", vm.name)
     session = vm.wait_for_login(username = "root", password = "123456",
                 timeout = login_timeout)
-    pid = session.cmd("pgrep Xorg")
-    session.cmd("killall Xorg")
- 
+
+    output = session.cmd('cat /etc/redhat-release')
+    isRHEL7 = "release 7." in output
+
+    if isRHEL7:
+        command = "gdm"
+        pgrep_process = "'^gdm$'"
+    else:
+        command = "Xorg"
+        pgrep_process = "Xorg"
+
+    pid = session.cmd("pgrep %s" % pgrep_process)
+
+    session.cmd("killall %s" % command)
+
     utils_misc.wait_for(lambda: _is_pid_alive(session, pid), 10, timeout, 0.2)
 
     try:
-        session.cmd("ps -C Xorg")
+        session.cmd("ps -C %s" % command)
     except:
-        raise error.TestFail("X not running")
+        raise error.TestFail("X/gdm not running")
 
 def deploy_epel_repo(guest_session, params):
     """
@@ -299,7 +311,7 @@ def gen_rv_file(params, guest_vm, host_subj = None, cacert = None):
                   "port=%s\n" % guest_vm.get_spice_var("spice_port"))
 
     ticket = params.get("spice_password")
-    ticket_send = params.get("spice_password_send")    
+    ticket_send = params.get("spice_password_send")
     qemu_ticket = params.get("qemu_password")
     if ticket_send:
         ticket = ticket_send
@@ -317,7 +329,7 @@ def gen_rv_file(params, guest_vm, host_subj = None, cacert = None):
         cert = open(cacert)
         ca = cert.read()
         ca = ca.replace('\n', r'\n')
-        rv_file.write("ca=%s\n" % ca)        
+        rv_file.write("ca=%s\n" % ca)
     if full_screen == "yes":
         rv_file.write("fullscreen=1\n")
     if proxy:
