@@ -62,9 +62,10 @@ def setup_vm(vm, params, test):
     """
     vmparams = vm.get_params()
     ostype = vmparams.get("os_type")
-    session = vm.wait_for_login(username = "root", password = "123456",
-            timeout=int(params.get("login_timeout", 360)))
     if(ostype == "linux"):
+        session = vm.wait_for_login(username = "root", password = "123456",
+        timeout=int(params.get("login_timeout", 360)))
+
         arch = params.get("vm_arch_name")
         fedoraurl = params.get("fedoraurl")
         wmctrl_64rpm = params.get("wmctrl_64rpm")
@@ -80,38 +81,48 @@ def setup_vm(vm, params, test):
             install_rpm(session, "wmctrl", wmctrlrpm)
         deploy_tests(vm, params)
     elif(ostype == "windows"):
-        #Please remote teh two lines below
-        pass
-    elif(ostype == "laldfa"):
+        #remove the following two lines
+        #pass
+        #elif(ostype == "klajdlkakl"):
+        session = vm.wait_for_login(username = "Administrator", password = "1q2w3eP",
+        timeout=int(params.get("login_timeout", 360)))
         winqxl = params.get("winqxl")
         winvdagent = params.get("winvdagent")
         vioserial = params.get("vioserial")
         winp7 = params.get("winp7zip")
         guest_script_req = params.get("guest_script_req")
+        md5sumwin = params.get("md5sumwin")
+        md5sumwin_dir = os.path.join("scripts", md5sumwin)
         guest_sr_dir = os.path.join("scripts", guest_script_req)
         guest_sr_path = utils_misc.get_path(test.virtdir, guest_sr_dir)
+        md5sumwin_path = utils_misc.get_path(test.virtdir, md5sumwin_dir)
         winp7_path = os.path.join(test.virtdir, 'deps', winp7)
         winqxlzip = os.path.join(test.virtdir, 'deps', winqxl)
         winvdagentzip = os.path.join(test.virtdir, 'deps', winvdagent)
         vioserialzip = os.path.join(test.virtdir, 'deps', vioserial)
         #copy p7zip to windows and install it silently
+        logging.info("Copying files to the Windows VM")
         vm.copy_files_to(winp7_path, "C:\\")
-        session.cmd_status("msiexec /i C:\\7z920-x64.msi /quiet") 
-        #wait for p7zip to be installed
-        #utils_spice.wait_timeout(5)
-        outputpath = session.cmd("path")
-        print outputpath
 
         #copy over the winqxl, winvdagent, virtio serial 
         vm.copy_files_to(winqxlzip, "C:\\")
         vm.copy_files_to(winvdagentzip, "C:\\")
         vm.copy_files_to(vioserialzip, "C:\\")
         vm.copy_files_to(guest_sr_path, "C:\\")
+        vm.copy_files_to(md5sumwin_path, "C:\\")
         #Wait for p7zip to be installed and all the files to be copied over
         utils_spice.wait_timeout(10)
 
+        #install p7zip silently
+        session.cmd_status("msiexec /i C:\\7z920-x64.msi /quiet")
+        #wait for p7zip to be installed
+        utils_spice.wait_timeout(5)
+        outputpath = session.cmd("path")
+        print outputpath
+
         #extract winvdagent zip and start service
         session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\wvdagent.zip -oC:\\')
+        utils_spice.wait_timeout(2)
         session.cmd_status("C:\\vdservice.exe install")
         #wait for vdservice to come up
         utils_spice.wait_timeout(5)

@@ -354,9 +354,8 @@ def run_rv_connect(test, params, env):
     if params.get("clear_interface", "yes") == "yes":
         isRHEL7 = False
         for vm in params.get("vms").split():
-            print vm
+            #print vm
             if (env.get_vm(vm).params.get("os_type") == "linux"):
-                print "GOT HERE, linux match"
                 utils_spice.clear_interface(env.get_vm(vm),
                                        int(params.get("login_timeout", "360")))
                 session = env.get_vm(vm).wait_for_login(timeout=360)
@@ -364,7 +363,6 @@ def run_rv_connect(test, params, env):
                 isRHEL7 = ("release 7." in output) or isRHEL7
 
             else:
-                print "GOT HERE TOO, no linux match"
                 session = env.get_vm(vm).wait_for_login(timeout=360)
         if isRHEL7:
             utils_spice.wait_timeout(60)
