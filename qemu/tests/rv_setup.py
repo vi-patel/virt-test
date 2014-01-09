@@ -13,14 +13,15 @@ Requires: the client and guest VMs to be setup.
 import logging, os
 from os import system, getcwd, chdir
 from virttest import utils_misc, utils_spice
+from virttest.aexpect import ShellCmdError
 
 def install_rpm(session, name, rpm):
     """
     installs dogtail on a VM
 
-    @param session: cmd session of a VM
-    @rpm: rpm to be installed
-    @name name of the package
+    :param session: cmd session of a VM
+    :param rpm: rpm to be installed
+    :param name: name of the package
     
     """
     logging.info("Installing " + name + " from: " + rpm)
@@ -32,8 +33,8 @@ def deploy_tests(vm, params):
     """
     Moves the dogtail tests to a vm
 
-    @param vm: a VM
-    @param params: dictionary of paramaters
+    :param vm: a VM
+    :param params: dictionary of paramaters
     """
     logging.info("Deploying tests")
     script_location = params.get("test_script_tgt")
@@ -57,8 +58,9 @@ def setup_vm(vm, params, test):
     """
     Setup the vm for GUI testing, install dogtail & move tests over.
 
-    @param vm: a VM
-    @param params: dictionary of test paramaters
+    :param vm: a VM
+    :param params: dictionary of test paramaters
+    :param test: QEMU test object
     """
     vmparams = vm.get_params()
     ostype = vmparams.get("os_type")
@@ -81,11 +83,9 @@ def setup_vm(vm, params, test):
             install_rpm(session, "wmctrl", wmctrlrpm)
         deploy_tests(vm, params)
     elif(ostype == "windows"):
-        #remove the following two lines
-        #pass
-        #elif(ostype == "klajdlkakl"):
-        session = vm.wait_for_login(username = "Administrator", password = "1q2w3eP",
-        timeout=int(params.get("login_timeout", 360)))
+        session = vm.wait_for_login(username = "Administrator",
+                               password = "1q2w3eP",
+                               timeout=int(params.get("login_timeout", 360)))
         winqxl = params.get("winqxl")
         winvdagent = params.get("winvdagent")
         vioserial = params.get("vioserial")
@@ -100,6 +100,7 @@ def setup_vm(vm, params, test):
         winqxlzip = os.path.join(test.virtdir, 'deps', winqxl)
         winvdagentzip = os.path.join(test.virtdir, 'deps', winvdagent)
         vioserialzip = os.path.join(test.virtdir, 'deps', vioserial)
+        pnputil = params.get("pnputil")
         #copy p7zip to windows and install it silently
         logging.info("Copying files to the Windows VM")
         vm.copy_files_to(winp7_path, "C:\\")
@@ -120,32 +121,44 @@ def setup_vm(vm, params, test):
         outputpath = session.cmd("path")
         print outputpath
 
-        #extract winvdagent zip and start service
-        session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\wvdagent.zip -oC:\\')
-        utils_spice.wait_timeout(2)
-        session.cmd_status("C:\\vdservice.exe install")
-        #wait for vdservice to come up
-        utils_spice.wait_timeout(5)
-        output = session.cmd("net start vdservice") 
-        print output
-        output = session.cmd("chdir")
-        print output
-        print "OUTPUT ABOVE --------------------->"
+        #extract winvdagent zip and start service if vdservice is not installed
+        try:
+            output = session.cmd('sc queryex type= service state= all' +
+                                 ' | FIND "vdservice"')
+        except ShellCmdError:
+            session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\wvdagent.zip -oC:\\')
+            utils_spice.wait_timeout(2)
+            session.cmd_status("C:\\vdservice.exe install")
+            #wait for vdservice to come up
+            utils_spice.wait_timeout(5)
+            output = session.cmd("net start vdservice") 
+            print output
+            output = session.cmd("chdir")
+            print output
+            print "OUTPUT ABOVE --------------------->"
 
         #extract winqxl driver, place drivers in correct location & reboot
         #Note pnputil only works win 7+, need to find a way for win xp
-        session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\vioserial.zip -oC:\\')
-        output = session.cmd("C:\\Windows\\winsxs\\amd64_microsoft-windows-pnputil_31bf3856ad364e35_6.1.7600.16385_none_5958b438d6388d15\\PnPutil.exe -i -a C:\\vioser.inf")
-        print "Virtio Serial status: " + output
-        #Make sure virtio install is complete
-        utils_spice.wait_timeout(5)
-
-        #winqxl
-        session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\wqxl.zip -oC:\\')
-        output = session.cmd("C:\\Windows\\winsxs\\amd64_microsoft-windows-pnputil_31bf3856ad364e35_6.1.7600.16385_none_5958b438d6388d15\\PnPutil.exe -i -a C:\\qxl.inf")
-        print "Win QXL status: " + output
-        #Make sure qxl install is complete
-        utils_spice.wait_timeout(5)
+        #Verify if virtio serial is already installed
+        output = session.cmd(pnputil + " /e")
+        if("System devices" in output):
+            print "Virtio Serial already installed"
+        else:
+            session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\vioserial.zip -oC:\\')
+            output = session.cmd(pnputil + " -i -a C:\\vioser.inf")
+            print "Virtio Serial status: " + output
+            #Make sure virtio install is complete
+            utils_spice.wait_timeout(5)
+        output = session.cmd(pnputil + " /e")
+        if("Display adapters" in output):
+            print "QXL already installed"
+        else:
+            #winqxl
+            session.cmd_status('"C:\\Program Files\\7-Zip\\7z.exe" e C:\\wqxl.zip -oC:\\')
+            output = session.cmd(pnputil + " -i -a C:\\qxl.inf")
+            print "Win QXL status: " + output
+            #Make sure qxl install is complete
+            utils_spice.wait_timeout(5)
         vm.reboot()
          
         print "Setup for the Windows VM is complete"
@@ -157,9 +170,9 @@ def run_rv_setup(test, params, env):
     """
     Setup the VMs for remote-viewer testing
 
-    @param test: QEMU test object.
-    @param params: Dictionary with the test parameters.
-    @param env: Dictionary with test environment.
+    :param test: QEMU test object.
+    :param params: Dictionary with the test parameters.
+    :param env: Dictionary with test environment.
     """
 
     for vm in params.get("vms").split():
